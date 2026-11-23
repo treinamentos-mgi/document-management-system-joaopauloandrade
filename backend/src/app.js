@@ -1,5 +1,6 @@
 const express = require('express');
 const multer = require('multer');
+const RateLimit = require('express-rate-limit');
 const path = require('node:path');
 const DocumentRepository = require('./repositories/documentRepository');
 const createDocumentService = require('./services/documentService');
@@ -19,8 +20,15 @@ function createApp({ storageDirectory = DEFAULT_STORAGE_DIRECTORY } = {}) {
     documentService,
     fileStorageService,
   );
+  const requestRateLimit = RateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
   app.use(express.json());
+  app.use(requestRateLimit);
   app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
   });

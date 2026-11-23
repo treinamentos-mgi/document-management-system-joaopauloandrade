@@ -84,7 +84,7 @@ test('limita requisições de upload', async (t) => {
   });
 
   const uploadUrl = `http://127.0.0.1:${server.address().port}/upload`;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     const response = await fetch(uploadUrl, {
       method: 'POST',
       body: new FormData(),
