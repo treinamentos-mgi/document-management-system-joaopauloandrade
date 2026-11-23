@@ -8,7 +8,7 @@ function createDocumentController(documentService, fileStorageService) {
       try {
         const document = documentService.registerUpload(
           req.file,
-          req.get('x-user-id') || 'anonymous',
+          req.user.id,
         );
         res.status(201).json(document);
       } catch (error) {
@@ -18,7 +18,7 @@ function createDocumentController(documentService, fileStorageService) {
 
     list(req, res, next) {
       try {
-        res.json(documentService.listDocuments(req.get('x-user-id') || 'anonymous'));
+        res.json(documentService.listDocuments(req.user.id));
       } catch (error) {
         next(error);
       }
@@ -28,7 +28,7 @@ function createDocumentController(documentService, fileStorageService) {
       try {
         const document = documentService.findDocument(
           req.params.id,
-          req.get('x-user-id') || 'anonymous',
+          req.user.id,
         );
         const filePath = document && fileStorageService.getFilePath(document.id);
 

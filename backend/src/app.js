@@ -2,6 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const RateLimit = require('express-rate-limit');
 const path = require('node:path');
+const { AppError } = require('./errors');
+const { attachDevUser } = require('./middlewares/dev-user');
 const DocumentRepository = require('./repositories/documentRepository');
 const createDocumentService = require('./services/documentService');
 const createFileStorageService = require('./services/fileStorageService');
@@ -11,7 +13,10 @@ const createDocumentRouter = require('./routes/documentRoutes');
 const PORT = process.env.PORT || 3000;
 const DEFAULT_STORAGE_DIRECTORY = path.resolve(__dirname, '../storage');
 
-function createApp({ storageDirectory = DEFAULT_STORAGE_DIRECTORY } = {}) {
+function createApp({
+  storageDirectory = DEFAULT_STORAGE_DIRECTORY,
+  authenticateRequest = attachDevUser,
+} = {}) {
   const app = express();
   const documentRepository = new DocumentRepository();
   const documentService = createDocumentService(documentRepository);
@@ -28,6 +33,7 @@ function createApp({ storageDirectory = DEFAULT_STORAGE_DIRECTORY } = {}) {
   });
 
   app.use(express.json());
+  app.use(authenticateRequest);
   app.use(requestRateLimit);
   app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
@@ -36,6 +42,12 @@ function createApp({ storageDirectory = DEFAULT_STORAGE_DIRECTORY } = {}) {
   app.use((error, req, res, next) => {
     if (res.headersSent) {
       return next(error);
+    }
+
+    if (error instanceof AppError) {
+      return res.status(error.status).json({
+        error: { code: error.code, message: error.message },
+      });
     }
 
     const status = error instanceof multer.MulterError ? 400 : 500;
