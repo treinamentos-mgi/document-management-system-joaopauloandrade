@@ -1,4 +1,6 @@
 const crypto = require('node:crypto');
+const path = require('node:path');
+const config = require('../config');
 const documentRepository = require('../repositories/document.repository');
 const fileRepository = require('../repositories/file.repository');
 const { AppError } = require('../errors');
@@ -13,7 +15,32 @@ function toPublicDocument(document) {
   };
 }
 
+// Confere se o conteúdo começa com a assinatura do formato declarado pela extensão.
+async function assertContentMatchesExtension(file) {
+  const extension = path.extname(file.originalname).toLowerCase();
+  const signature = config.fileSignaturesByExtension[extension];
+
+  let header;
+  try {
+    header = await fileRepository.readLeadingBytes(file.filename, signature.length);
+  } catch {
+    await fileRepository.remove(file.filename);
+    throw new AppError(500, 'UPLOAD_FAILED', 'Não foi possível ler o arquivo enviado.');
+  }
+
+  if (!header.equals(signature)) {
+    await fileRepository.remove(file.filename);
+    throw new AppError(
+      415,
+      'UNSUPPORTED_FILE_TYPE',
+      'O conteúdo do arquivo não corresponde ao tipo informado.',
+    );
+  }
+}
+
 async function registerDocument({ owner, file }) {
+  await assertContentMatchesExtension(file);
+
   const document = {
     id: crypto.randomUUID(),
     originalName: file.originalname,

@@ -51,6 +51,17 @@ async function exists(storedFilename) {
   }
 }
 
+async function readLeadingBytes(storedFilename, length) {
+  const handle = await fs.promises.open(resolveStoredPath(storedFilename), 'r');
+  try {
+    const buffer = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 async function remove(storedFilename) {
   await fs.promises.rm(resolveStoredPath(storedFilename), { force: true });
 }
@@ -59,5 +70,6 @@ module.exports = {
   uploadSingleFile: upload.single('file'),
   resolveStoredPath,
   exists,
+  readLeadingBytes,
   remove,
 };

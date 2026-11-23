@@ -115,11 +115,26 @@ describe('rotas de documentos', () => {
     const response = await uploadDocument(baseUrl, 'user-a', {
       name: 'planilha.xlsx',
       type: 'application/octet-stream',
-      content: 'conteudo',
+      content: 'PK\x03\x04conteudo',
     });
 
     assert.strictEqual(response.status, 201);
     assert.strictEqual((await response.json()).document.originalName, 'planilha.xlsx');
+  });
+
+  test('POST /upload rejeita conteúdo que não corresponde à extensão e não grava o arquivo', async () => {
+    const response = await uploadDocument(baseUrl, 'user-a', {
+      name: 'falso.pdf',
+      type: 'application/pdf',
+      content: 'isto não é um PDF',
+    });
+
+    assert.strictEqual(response.status, 415);
+    assert.strictEqual((await response.json()).error.code, 'UNSUPPORTED_FILE_TYPE');
+    assert.deepStrictEqual(
+      fs.readdirSync(config.storageDir).filter((file) => !storedBefore.has(file)),
+      [],
+    );
   });
 
   test('POST /upload rejeita arquivo acima do limite com 413', async () => {
@@ -134,8 +149,8 @@ describe('rotas de documentos', () => {
   });
 
   test('GET /documents lista somente os documentos do próprio usuário', async () => {
-    await uploadDocument(baseUrl, 'lista-dono', { name: 'a.pdf', type: 'application/pdf', content: 'a' });
-    await uploadDocument(baseUrl, 'lista-outro', { name: 'b.pdf', type: 'application/pdf', content: 'b' });
+    await uploadDocument(baseUrl, 'lista-dono', { name: 'a.pdf', type: 'application/pdf', content: '%PDF-1.4 a' });
+    await uploadDocument(baseUrl, 'lista-outro', { name: 'b.pdf', type: 'application/pdf', content: '%PDF-1.4 b' });
 
     const response = await fetch(`${baseUrl}/documents`, { headers: { 'x-test-user': 'lista-dono' } });
     const { documents } = await response.json();
@@ -151,7 +166,7 @@ describe('rotas de documentos', () => {
     const uploadResponse = await uploadDocument(baseUrl, 'user-a', {
       name: 'planilha.xlsx',
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      content: 'conteudo-binario',
+      content: 'PK\x03\x04conteudo-binario',
     });
     const { document } = await uploadResponse.json();
     const url = `${baseUrl}/documents/${document.id}/download`;
@@ -160,7 +175,7 @@ describe('rotas de documentos', () => {
     const intruder = await fetch(url, { headers: { 'x-test-user': 'user-b' } });
 
     assert.strictEqual(owner.status, 200);
-    assert.strictEqual(await owner.text(), 'conteudo-binario');
+    assert.strictEqual(await owner.text(), 'PK\x03\x04conteudo-binario');
     assert.match(owner.headers.get('content-disposition'), /^attachment; filename="planilha\.xlsx"/);
     assert.strictEqual(intruder.status, 404);
     assert.strictEqual((await intruder.json()).error.code, 'DOCUMENT_NOT_FOUND');
