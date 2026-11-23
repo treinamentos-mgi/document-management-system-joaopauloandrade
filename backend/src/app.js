@@ -1,33 +1,63 @@
-// Seed do servidor backend do Document Management System.
-//
-// Este arquivo é apenas um ponto de partida mínimo. Ao longo do workshop você
-// vai usar o Agent Mode do GitHub Copilot para construir as camadas:
-//   - routes/       (definição das rotas)
-//   - controllers/  (entrada HTTP e validação)
-//   - services/     (regras de negócio)
-//   - repositories/ (persistência: arquivos locais + metadados em memória)
-//
-// Restrição do projeto: uploads são gravados no filesystem local da aplicação
-// usando multer com diskStorage. Não utilize provedores externos.
-
 const express = require('express');
-const documentsRoutes = require('./routes/documents.routes');
+const multer = require('multer');
+const RateLimit = require('express-rate-limit');
+const path = require('node:path');
+const { AppError } = require('./errors');
 const { attachDevUser } = require('./middlewares/dev-user');
-const { errorHandler } = require('./middlewares/error-handler');
+const DocumentRepository = require('./repositories/documentRepository');
+const createDocumentService = require('./services/documentService');
+const createFileStorageService = require('./services/fileStorageService');
+const createDocumentController = require('./controllers/documentController');
+const createDocumentRouter = require('./routes/documentRoutes');
 
-const app = express();
 const PORT = process.env.PORT || 3000;
+const DEFAULT_STORAGE_DIRECTORY = path.resolve(__dirname, '../storage');
 
-app.use(express.json());
-app.use(attachDevUser);
+function createApp({
+  storageDirectory = DEFAULT_STORAGE_DIRECTORY,
+  authenticateRequest = attachDevUser,
+} = {}) {
+  const app = express();
+  const documentRepository = new DocumentRepository();
+  const documentService = createDocumentService(documentRepository);
+  const fileStorageService = createFileStorageService(storageDirectory);
+  const documentController = createDocumentController(
+    documentService,
+    fileStorageService,
+  );
+  const requestRateLimit = RateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
-// Endpoint de verificação de saúde.
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+  app.use(express.json());
+  app.use(authenticateRequest);
+  app.use(requestRateLimit);
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+  });
+  app.use(createDocumentRouter(documentController, storageDirectory));
+  app.use((error, req, res, next) => {
+    if (res.headersSent) {
+      return next(error);
+    }
 
-app.use(documentsRoutes);
-app.use(errorHandler);
+    if (error instanceof AppError) {
+      return res.status(error.status).json({
+        error: { code: error.code, message: error.message },
+      });
+    }
+
+    const status = error instanceof multer.MulterError ? 400 : 500;
+    res.status(status).json({ error: status === 400 ? error.message : 'Erro interno do servidor' });
+  });
+
+  return app;
+}
+
+const app = createApp();
 
 if (require.main === module) {
   app.listen(PORT, () => {
@@ -36,3 +66,4 @@ if (require.main === module) {
 }
 
 module.exports = app;
+module.exports.createApp = createApp;
