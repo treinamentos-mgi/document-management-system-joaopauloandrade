@@ -16,11 +16,17 @@ const storage = multer.diskStorage({
   },
 });
 
+// Navegadores enviam octet-stream quando o sistema operacional não reconhece o formato.
+const GENERIC_MIME_TYPES = ['application/octet-stream', ''];
+
 function fileFilter(req, file, cb) {
   const extension = path.extname(file.originalname).toLowerCase();
   const expectedMimeType = config.uploadTypesByExtension[extension];
+  const declaredMimeType = (file.mimetype || '').toLowerCase();
+  const isCompatibleMime =
+    declaredMimeType === expectedMimeType || GENERIC_MIME_TYPES.includes(declaredMimeType);
 
-  if (!expectedMimeType || expectedMimeType !== file.mimetype) {
+  if (!expectedMimeType || !isCompatibleMime) {
     return cb(new AppError(415, 'UNSUPPORTED_FILE_TYPE', 'Tipo de arquivo não permitido.'));
   }
   return cb(null, true);

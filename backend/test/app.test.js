@@ -111,6 +111,17 @@ describe('rotas de documentos', () => {
     assert.strictEqual(fs.readdirSync(config.storageDir).length, storedBefore.size);
   });
 
+  test('POST /upload aceita extensão permitida com MIME genérico do navegador', async () => {
+    const response = await uploadDocument(baseUrl, 'user-a', {
+      name: 'planilha.xlsx',
+      type: 'application/octet-stream',
+      content: 'conteudo',
+    });
+
+    assert.strictEqual(response.status, 201);
+    assert.strictEqual((await response.json()).document.originalName, 'planilha.xlsx');
+  });
+
   test('POST /upload rejeita arquivo acima do limite com 413', async () => {
     const response = await uploadDocument(baseUrl, 'user-a', {
       name: 'grande.pdf',

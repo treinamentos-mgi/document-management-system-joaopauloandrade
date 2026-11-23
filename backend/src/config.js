@@ -33,6 +33,8 @@ const allowedMimeTypes = parseAllowedMimeTypes(process.env.UPLOAD_ALLOWED_MIME_T
 
 module.exports = {
   storageDir: path.resolve(__dirname, '..', 'storage'),
+  // Identidade fixa apenas para desenvolvimento local; ignorada em produção.
+  devUserId: process.env.NODE_ENV === 'production' ? null : process.env.DEV_USER_ID || null,
   uploadMaxSizeBytes: parseMaxSize(process.env.UPLOAD_MAX_SIZE_BYTES),
   uploadTypesByExtension: Object.fromEntries(
     Object.entries(SUPPORTED_UPLOAD_TYPES).filter(([, mimeType]) =>

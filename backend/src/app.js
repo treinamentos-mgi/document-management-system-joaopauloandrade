@@ -12,12 +12,14 @@
 
 const express = require('express');
 const documentsRoutes = require('./routes/documents.routes');
+const { attachDevUser } = require('./middlewares/dev-user');
 const { errorHandler } = require('./middlewares/error-handler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(attachDevUser);
 
 // Endpoint de verificação de saúde.
 app.get('/health', (req, res) => {
