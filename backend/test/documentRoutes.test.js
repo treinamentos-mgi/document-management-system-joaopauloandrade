@@ -73,3 +73,28 @@ test('preserva o endpoint de saúde', async (t) => {
   const response = await fetch(`http://127.0.0.1:${server.address().port}/health`);
   assert.deepStrictEqual(await response.json(), { status: 'ok' });
 });
+
+test('limita requisições de upload', async (t) => {
+  const storageDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'dms-rate-limit-'));
+  const server = createApp({ storageDirectory }).listen(0);
+  await once(server, 'listening');
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await fs.rm(storageDirectory, { recursive: true, force: true });
+  });
+
+  const uploadUrl = `http://127.0.0.1:${server.address().port}/upload`;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: new FormData(),
+    });
+    assert.strictEqual(response.status, 400);
+  }
+
+  const limitedResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    body: new FormData(),
+  });
+  assert.strictEqual(limitedResponse.status, 429);
+});
