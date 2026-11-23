@@ -1,0 +1,42 @@
+const path = require('node:path');
+
+const DEFAULT_UPLOAD_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+
+// Extensão -> MIME esperado. Um arquivo só é aceito se a extensão e o MIME
+// declarados forem coerentes com esta tabela.
+const SUPPORTED_UPLOAD_TYPES = {
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+function parseMaxSize(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : DEFAULT_UPLOAD_MAX_SIZE_BYTES;
+}
+
+function parseAllowedMimeTypes(value) {
+  if (!value) {
+    return Object.values(SUPPORTED_UPLOAD_TYPES);
+  }
+  return value
+    .split(',')
+    .map((mimeType) => mimeType.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+const allowedMimeTypes = parseAllowedMimeTypes(process.env.UPLOAD_ALLOWED_MIME_TYPES);
+
+module.exports = {
+  storageDir: path.resolve(__dirname, '..', 'storage'),
+  uploadMaxSizeBytes: parseMaxSize(process.env.UPLOAD_MAX_SIZE_BYTES),
+  uploadTypesByExtension: Object.fromEntries(
+    Object.entries(SUPPORTED_UPLOAD_TYPES).filter(([, mimeType]) =>
+      allowedMimeTypes.includes(mimeType),
+    ),
+  ),
+};
