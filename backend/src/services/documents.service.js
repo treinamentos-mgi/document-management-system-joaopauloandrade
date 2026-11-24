@@ -1,10 +1,10 @@
 const crypto = require('node:crypto');
-const path = require('node:path');
-const config = require('../config');
 const documentRepository = require('../repositories/document.repository');
 const fileRepository = require('../repositories/file.repository');
 const { AppError } = require('../errors');
+const { assertContentMatchesExtension } = require('./file-signature.validator');
 
+// Campos expostos ao cliente; caminho físico e tipo MIME ficam internos.
 function toPublicDocument(document) {
   return {
     id: document.id,
@@ -15,33 +15,8 @@ function toPublicDocument(document) {
   };
 }
 
-// Confere se o conteúdo começa com a assinatura do formato declarado pela extensão.
-async function assertContentMatchesExtension(file) {
-  const extension = path.extname(file.originalname).toLowerCase();
-  const signature = config.fileSignaturesByExtension[extension];
-
-  let header;
-  try {
-    header = await fileRepository.readLeadingBytes(file.filename, signature.length);
-  } catch {
-    await fileRepository.remove(file.filename);
-    throw new AppError(500, 'UPLOAD_FAILED', 'Não foi possível ler o arquivo enviado.');
-  }
-
-  if (!header.equals(signature)) {
-    await fileRepository.remove(file.filename);
-    throw new AppError(
-      415,
-      'UNSUPPORTED_FILE_TYPE',
-      'O conteúdo do arquivo não corresponde ao tipo informado.',
-    );
-  }
-}
-
-async function registerDocument({ owner, file }) {
-  await assertContentMatchesExtension(file);
-
-  const document = {
+function createDocumentRecord(owner, file) {
+  return {
     id: crypto.randomUUID(),
     originalName: file.originalname,
     size: file.size,
@@ -50,11 +25,26 @@ async function registerDocument({ owner, file }) {
     mimeType: file.mimetype,
     storedFilename: file.filename,
   };
+}
+
+function discardUpload(file) {
+  return fileRepository.remove(file.filename);
+}
+
+async function registerDocument({ owner, file }) {
+  try {
+    await assertContentMatchesExtension(file);
+  } catch (error) {
+    await discardUpload(file);
+    throw error;
+  }
+
+  const document = createDocumentRecord(owner, file);
 
   try {
     documentRepository.save(document);
   } catch {
-    await fileRepository.remove(file.filename);
+    await discardUpload(file);
     throw new AppError(500, 'UPLOAD_FAILED', 'Não foi possível registrar o documento.');
   }
 
